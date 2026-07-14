@@ -1,6 +1,8 @@
 import asyncio
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+
+import httpx
 
 from app.exchanges import get_binance_prices, get_bybit_prices
 
@@ -14,10 +16,18 @@ async def health():
 
 @app.get("/spread")
 async def spread(symbol: str = "BTCUSDT"):
-    binance, bybit = await asyncio.gather(
-        get_binance_prices(symbol),
-        get_bybit_prices(symbol),
+    try: 
+        binance, bybit = await asyncio.gather(
+            get_binance_prices(symbol),
+            get_bybit_prices(symbol),
     )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code = 502, detail = "Exchange request timed out")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Exchange returned error: {e.response.status_code}",
+        )
 
     buy_bybit_sell_binance = binance["bid"] - bybit["ask"]
     buy_binance_sell_bybit = bybit["bid"] - binance["ask"]
