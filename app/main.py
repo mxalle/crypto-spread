@@ -1,13 +1,16 @@
 import asyncio
-
-from fastapi import FastAPI, HTTPException
-
+from fastapi import FastAPI, HTTPException, Depends
 import httpx
-
 from app.exchanges import get_binance_prices, get_bybit_prices
+from app.database import engine, get_db, Base
+from app.models import PriceSnapshot
+from sqlalchemy.orm import Session
+
+
 
 app = FastAPI(title="Crypto Spread Aggregator")
 
+Base.metadata.create_all(bind=engine)
 
 @app.get("/health")
 async def health():
@@ -15,7 +18,7 @@ async def health():
 
 
 @app.get("/spread")
-async def spread(symbol: str = "BTCUSDT"):
+async def spread(symbol: str = "BTCUSDT", db: Session = Depends(get_db)):
     try: 
         binance, bybit = await asyncio.gather(
             get_binance_prices(symbol),
@@ -29,6 +32,22 @@ async def spread(symbol: str = "BTCUSDT"):
             detail=f"Exchange returned error: {e.response.status_code}",
         )
 
+    db.add_all([
+        PriceSnapshot(
+            exchange=binance["exchange"],
+            symbol=binance["symbol"],
+            bid=binance["bid"],
+            ask=binance["ask"],
+        ),
+        PriceSnapshot(
+            exchange=bybit["exchange"],
+            symbol=bybit["symbol"],
+            bid=bybit["bid"],
+            ask=bybit["ask"],
+        ),
+    ])
+    db.commit()
+    
     buy_bybit_sell_binance = binance["bid"] - bybit["ask"]
     buy_binance_sell_bybit = bybit["bid"] - binance["ask"]
 
