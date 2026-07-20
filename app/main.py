@@ -67,3 +67,41 @@ async def spread(symbol: str = "BTCUSDT", db: Session = Depends(get_db)):
             },
         ],
     }
+
+
+@app.get("/history")
+def history(
+    symbol: str = "BTCUSDT",
+    exchange: str | None = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+):
+    query = db.query(PriceSnapshot)
+
+    query = query.filter(
+        PriceSnapshot.symbol == symbol
+    )
+
+    if exchange:
+        query = query.filter(
+            PriceSnapshot.exchange == exchange
+        )
+
+    query = query.order_by(
+        PriceSnapshot.timestamp.desc()
+    )
+
+    query = query.limit(limit)
+
+    snapshots = query.all()
+
+    return [
+        {
+            "exchange": snapshot.exchange,
+            "symbol": snapshot.symbol,
+            "bid": snapshot.bid,
+            "ask": snapshot.ask,
+            "timestamp": snapshot.timestamp,
+        }
+        for snapshot in snapshots
+    ]
