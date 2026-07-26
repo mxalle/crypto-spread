@@ -1,9 +1,9 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-DATABASE_URL = "sqlite:///./prices.db"
+DATABASE_URL = "postgresql://postgres:testtest123@localhost:5432/crypto"
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(bind=engine)
 
