@@ -1,16 +1,26 @@
 import asyncio
+from contextlib import asynccontextmanager
 from itertools import combinations
 from fastapi import FastAPI, HTTPException, Depends
 from app.exchanges import EXCHANGES
 from app.database import engine, get_db, Base
 from app.models import PriceSnapshot
+from app.scheduler import scheduler, start_scheduler
 from sqlalchemy.orm import Session
 
 
-
-app = FastAPI(title="Crypto Spread Aggregator")
-
 Base.metadata.create_all(bind=engine)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
+    scheduler.shutdown()
+
+
+app = FastAPI(title="Crypto Spread Aggregator", lifespan=lifespan)
+
 
 @app.get("/health")
 async def health():
