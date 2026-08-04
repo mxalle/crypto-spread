@@ -1,4 +1,5 @@
 import asyncio
+from itertools import combinations
 from fastapi import FastAPI, HTTPException, Depends
 from app.exchanges import EXCHANGES
 from app.database import engine, get_db, Base
@@ -37,24 +38,25 @@ async def spread(symbol: str = "BTCUSDT", db: Session = Depends(get_db)):
     ])
     db.commit()
 
-    buy_bybit_sell_binance = prices[0]["bid"] - prices[1]["ask"]
-    buy_binance_sell_bybit = prices[1]["bid"] - prices[0]["ask"]
+    spreads = []
+    for a, b in combinations(prices, 2):
+        buy_b_sell_a = a["bid"] - b["ask"]
+        buy_a_sell_b = b["bid"] - a["ask"]
+        spreads.append({
+            "direction": f"buy_{b['exchange']}_sell_{a['exchange']}",
+            "raw": round(buy_b_sell_a, 2),
+            "raw_pct": round(buy_b_sell_a / b["ask"] * 100, 4),
+        })
+        spreads.append({
+            "direction": f"buy_{a['exchange']}_sell_{b['exchange']}",
+            "raw": round(buy_a_sell_b, 2),
+            "raw_pct": round(buy_a_sell_b / a["ask"] * 100, 4),
+        })
 
     return {
         "symbol": symbol,
         "prices": prices,
-        "spreads": [
-            {
-                "direction": "buy_bybit_sell_binance",
-                "raw": round(buy_bybit_sell_binance, 2),
-                "raw_pct": round(buy_bybit_sell_binance / prices[1]["ask"] * 100, 4),
-            },
-            {
-                "direction": "buy_binance_sell_bybit",
-                "raw": round(buy_binance_sell_bybit, 2),
-                "raw_pct": round(buy_binance_sell_bybit / prices[0]["ask"] * 100, 4),
-            },
-        ],
+        "spreads": spreads,
     }
 
 
