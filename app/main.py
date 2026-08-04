@@ -1,13 +1,18 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
-from itertools import combinations
 from fastapi import FastAPI, HTTPException, Depends
 from app.exchanges import EXCHANGES
 from app.database import engine, get_db, Base
 from app.models import PriceSnapshot
 from app.scheduler import scheduler, start_scheduler
+from app.spreads import calculate_spreads
 from sqlalchemy.orm import Session
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 Base.metadata.create_all(bind=engine)
 
@@ -48,20 +53,7 @@ async def spread(symbol: str = "BTCUSDT", db: Session = Depends(get_db)):
     ])
     db.commit()
 
-    spreads = []
-    for a, b in combinations(prices, 2):
-        buy_b_sell_a = a["bid"] - b["ask"]
-        buy_a_sell_b = b["bid"] - a["ask"]
-        spreads.append({
-            "direction": f"buy_{b['exchange']}_sell_{a['exchange']}",
-            "raw": round(buy_b_sell_a, 2),
-            "raw_pct": round(buy_b_sell_a / b["ask"] * 100, 4),
-        })
-        spreads.append({
-            "direction": f"buy_{a['exchange']}_sell_{b['exchange']}",
-            "raw": round(buy_a_sell_b, 2),
-            "raw_pct": round(buy_a_sell_b / a["ask"] * 100, 4),
-        })
+    spreads = calculate_spreads(prices)
 
     return {
         "symbol": symbol,
