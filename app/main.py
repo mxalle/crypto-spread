@@ -1,7 +1,6 @@
 import asyncio
 from fastapi import FastAPI, HTTPException, Depends
-import httpx
-from app.exchanges import BinanceClient, BybitClient
+from app.exchanges import EXCHANGES
 from app.database import engine, get_db, Base
 from app.models import PriceSnapshot
 from sqlalchemy.orm import Session
@@ -9,9 +8,6 @@ from sqlalchemy.orm import Session
 
 
 app = FastAPI(title="Crypto Spread Aggregator")
-
-binance_client = BinanceClient()
-bybit_client = BybitClient()
 
 Base.metadata.create_all(bind=engine)
 
@@ -22,51 +18,41 @@ async def health():
 
 @app.get("/spread")
 async def spread(symbol: str = "BTCUSDT", db: Session = Depends(get_db)):
-    try: 
-        binance, bybit = await asyncio.gather(
-            binance_client.get_prices(symbol),
-            bybit_client.get_prices(symbol),
-    )
-    except httpx.TimeoutException:
-        raise HTTPException(status_code = 502, detail = "Exchange request timed out")
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Exchange returned error: {e.response.status_code}",
-        )
+    tasks = [exchange.get_prices(symbol) for exchange in EXCHANGES]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    prices = [result for result in results if isinstance(result, dict)]
+
+    if not prices:
+        raise HTTPException(status_code=502, detail="All exchange requests failed")
 
     db.add_all([
         PriceSnapshot(
-            exchange=binance["exchange"],
-            symbol=binance["symbol"],
-            bid=binance["bid"],
-            ask=binance["ask"],
-        ),
-        PriceSnapshot(
-            exchange=bybit["exchange"],
-            symbol=bybit["symbol"],
-            bid=bybit["bid"],
-            ask=bybit["ask"],
-        ),
+            exchange=price["exchange"],
+            symbol=price["symbol"],
+            bid=price["bid"],
+            ask=price["ask"],
+        )
+        for price in prices
     ])
     db.commit()
-    
-    buy_bybit_sell_binance = binance["bid"] - bybit["ask"]
-    buy_binance_sell_bybit = bybit["bid"] - binance["ask"]
+
+    buy_bybit_sell_binance = prices[0]["bid"] - prices[1]["ask"]
+    buy_binance_sell_bybit = prices[1]["bid"] - prices[0]["ask"]
 
     return {
         "symbol": symbol,
-        "prices": [binance, bybit],
+        "prices": prices,
         "spreads": [
             {
                 "direction": "buy_bybit_sell_binance",
                 "raw": round(buy_bybit_sell_binance, 2),
-                "raw_pct": round(buy_bybit_sell_binance / bybit["ask"] * 100, 4),
+                "raw_pct": round(buy_bybit_sell_binance / prices[1]["ask"] * 100, 4),
             },
             {
                 "direction": "buy_binance_sell_bybit",
                 "raw": round(buy_binance_sell_bybit, 2),
-                "raw_pct": round(buy_binance_sell_bybit / binance["ask"] * 100, 4),
+                "raw_pct": round(buy_binance_sell_bybit / prices[0]["ask"] * 100, 4),
             },
         ],
     }

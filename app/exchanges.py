@@ -31,7 +31,7 @@ class BinanceClient(ExchangeClient):
             data = response.json()
 
         result = {
-            "exchange": "binance",
+            "exchange": self.name,
             "symbol": symbol,
             "bid": float(data["bidPrice"]),
             "ask": float(data["askPrice"]),
@@ -67,7 +67,7 @@ class BybitClient(ExchangeClient):
             ticker = data["result"]["list"][0]
 
         result = {
-            "exchange": "bybit",
+            "exchange": self.name,
             "symbol": symbol,
             "bid": float(ticker["bid1Price"]),
             "ask": float(ticker["ask1Price"]),
@@ -80,3 +80,9 @@ class BybitClient(ExchangeClient):
         )
 
         return result
+
+
+EXCHANGES = [
+    BinanceClient(),
+    BybitClient(),
+]
