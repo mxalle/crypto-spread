@@ -82,7 +82,46 @@ class BybitClient(ExchangeClient):
         return result
 
 
+class OkxClient(ExchangeClient):
+    name = "okx"
+    URL = "https://www.okx.com/api/v5/market/ticker"
+
+    async def get_prices(self, symbol: str) -> dict:
+        key = f"prices:{self.name}:{symbol}"
+
+        cached = redis_client.get(key)
+        if cached:
+            return json.loads(cached)
+
+        inst_id = symbol.replace("USDT", "-USDT")
+
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(
+                self.URL,
+                params={"instId": inst_id},
+            )
+            response.raise_for_status()
+            data = response.json()
+            ticker = data["data"][0]
+
+        result = {
+            "exchange": self.name,
+            "symbol": symbol,
+            "bid": float(ticker["bidPx"]),
+            "ask": float(ticker["askPx"]),
+        }
+
+        redis_client.setex(
+            key,
+            2,
+            json.dumps(result)
+        )
+
+        return result
+
+
 EXCHANGES = [
     BinanceClient(),
     BybitClient(),
+    OkxClient(),
 ]
