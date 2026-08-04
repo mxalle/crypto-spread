@@ -1,7 +1,7 @@
 import asyncio
 from fastapi import FastAPI, HTTPException, Depends
 import httpx
-from app.exchanges import get_binance_prices, get_bybit_prices
+from app.exchanges import BinanceClient, BybitClient
 from app.database import engine, get_db, Base
 from app.models import PriceSnapshot
 from sqlalchemy.orm import Session
@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 
 
 app = FastAPI(title="Crypto Spread Aggregator")
+
+binance_client = BinanceClient()
+bybit_client = BybitClient()
 
 Base.metadata.create_all(bind=engine)
 
@@ -21,8 +24,8 @@ async def health():
 async def spread(symbol: str = "BTCUSDT", db: Session = Depends(get_db)):
     try: 
         binance, bybit = await asyncio.gather(
-            get_binance_prices(symbol),
-            get_bybit_prices(symbol),
+            binance_client.get_prices(symbol),
+            bybit_client.get_prices(symbol),
     )
     except httpx.TimeoutException:
         raise HTTPException(status_code = 502, detail = "Exchange request timed out")
@@ -104,4 +107,4 @@ def history(
             "timestamp": snapshot.timestamp,
         }
         for snapshot in snapshots
-    ]
+    ] 
