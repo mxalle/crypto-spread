@@ -1,12 +1,13 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Query
 from app.exchanges import EXCHANGES
 from app.database import engine, get_db, Base
 from app.models import PriceSnapshot
 from app.scheduler import scheduler, start_scheduler
 from app.spreads import calculate_spreads
+from app.schemas import HealthOut, SpreadResponse, PriceSnapshotOut
 from sqlalchemy.orm import Session
 
 logging.basicConfig(
@@ -27,12 +28,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Crypto Spread Aggregator", lifespan=lifespan)
 
 
-@app.get("/health")
+@app.get("/health", response_model=HealthOut)
 async def health():
     return {"status": "ok"}
 
 
-@app.get("/spread")
+@app.get("/spread", response_model=SpreadResponse)
 async def spread(symbol: str = "BTCUSDT", db: Session = Depends(get_db)):
     tasks = [exchange.get_prices(symbol) for exchange in EXCHANGES]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -62,11 +63,11 @@ async def spread(symbol: str = "BTCUSDT", db: Session = Depends(get_db)):
     }
 
 
-@app.get("/history")
+@app.get("/history", response_model=list[PriceSnapshotOut])
 def history(
     symbol: str = "BTCUSDT",
     exchange: str | None = None,
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     query = db.query(PriceSnapshot)
@@ -86,15 +87,4 @@ def history(
 
     query = query.limit(limit)
 
-    snapshots = query.all()
-
-    return [
-        {
-            "exchange": snapshot.exchange,
-            "symbol": snapshot.symbol,
-            "bid": snapshot.bid,
-            "ask": snapshot.ask,
-            "timestamp": snapshot.timestamp,
-        }
-        for snapshot in snapshots
-    ] 
+    return query.all()
