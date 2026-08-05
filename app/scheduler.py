@@ -19,9 +19,17 @@ async def collect_prices() -> None:
     tasks = [exchange.get_prices(settings.symbol) for exchange in EXCHANGES]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    prices = [result for result in results if isinstance(result, dict)]
+    prices = []
+    for exchange, result in zip(EXCHANGES, results):
+        if isinstance(result, dict):
+            prices.append(result)
+        else:
+            logger.error("Exchange %s failed: %s", exchange.name, result)
+
     if not prices:
         return
+
+    logger.info("Collected %d prices", len(prices))
 
     spreads = calculate_spreads(prices)
     for spread in spreads:
@@ -57,3 +65,4 @@ async def collect_prices() -> None:
 def start_scheduler() -> None:
     scheduler.add_job(collect_prices, "interval", seconds=settings.collect_interval)
     scheduler.start()
+    logger.info("Scheduler started, collecting every %ss", settings.collect_interval)

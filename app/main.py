@@ -15,6 +15,8 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
+logger = logging.getLogger(__name__)
+
 Base.metadata.create_all(bind=engine)
 
 
@@ -38,7 +40,12 @@ async def spread(symbol: str = "BTCUSDT", db: Session = Depends(get_db)):
     tasks = [exchange.get_prices(symbol) for exchange in EXCHANGES]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    prices = [result for result in results if isinstance(result, dict)]
+    prices = []
+    for exchange, result in zip(EXCHANGES, results):
+        if isinstance(result, dict):
+            prices.append(result)
+        else:
+            logger.error("Exchange %s failed: %s", exchange.name, result)
 
     if not prices:
         raise HTTPException(status_code=502, detail="All exchange requests failed")

@@ -1,10 +1,13 @@
 import json
+import logging
 from abc import ABC, abstractmethod
 
 import httpx
 
 from app.cache import redis_client
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class ExchangeClient(ABC):
