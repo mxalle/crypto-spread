@@ -6,6 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.database import SessionLocal
 from app.exchanges import EXCHANGES
 from app.models import PriceSnapshot
+from app.notifier import send_alert
 from app.spreads import calculate_spreads
 
 SYMBOL = "BTCUSDT"
@@ -31,6 +32,10 @@ async def collect_prices() -> None:
                 "Spread alert: %s at %s%%",
                 spread["direction"],
                 spread["raw_pct"],
+            )
+            await send_alert(
+                f"Spread alert on {SYMBOL}: {spread['direction']} "
+                f"= {spread['raw_pct']}% (raw {spread['raw']})"
             )
 
     db = SessionLocal()
