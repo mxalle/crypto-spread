@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import httpx
 
 from app.cache import redis_client
+from app.config import settings
 
 
 class ExchangeClient(ABC):
@@ -39,7 +40,7 @@ class BinanceClient(ExchangeClient):
 
         redis_client.setex(
             key,
-            2,
+            settings.price_cache_ttl,
             json.dumps(result)
         )
 
@@ -75,7 +76,7 @@ class BybitClient(ExchangeClient):
 
         redis_client.setex(
             key,
-            2,
+            settings.price_cache_ttl,
             json.dumps(result)
         )
 
@@ -113,7 +114,7 @@ class OkxClient(ExchangeClient):
 
         redis_client.setex(
             key,
-            2,
+            settings.price_cache_ttl,
             json.dumps(result)
         )
 

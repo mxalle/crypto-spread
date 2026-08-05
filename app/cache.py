@@ -1,6 +1,6 @@
 import redis
 
-REDIS_URL = "redis://127.0.0.1:6379"
+from app.config import settings
 
-redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
 
